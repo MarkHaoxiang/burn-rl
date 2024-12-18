@@ -1,0 +1,8 @@
+[workspace]
+
+members = [
+    "burn-rl", "experiments"
+]
+
+[workspace.dependencies]
+burn = { version = "0.15", features = ["ndarray", "autodiff"] }

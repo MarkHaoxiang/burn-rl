@@ -1,0 +1,9 @@
+[package]
+name = "burn-rl"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+burn = { workspace = true }
+expect-test = "1.5"
+gym-rs = { git = "https://github.com/MathisWellmann/gym-rs.git" }
