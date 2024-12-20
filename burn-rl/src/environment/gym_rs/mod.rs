@@ -6,16 +6,16 @@ pub struct GymEnvironment<T: Env> {
     env: T,
 }
 
+impl<T: Env> GymEnvironment<T> {
+    pub fn from(env: T) -> Self {
+        GymEnvironment { env }
+    }
+}
+
 impl<T: Env> Environment for GymEnvironment<T> {
     type Action = T::Action;
 
-    type Config = T;
-
     type Observation = T::Observation;
-
-    fn new(env: Self::Config) -> Self {
-        GymEnvironment { env }
-    }
 
     fn reset(&mut self) -> Self::Observation {
         let (obs, _) = self.env.reset(None, false, None);

@@ -8,13 +8,13 @@ use std::{any::Any, collections::HashMap, marker::PhantomData};
 pub struct WithTarget<B: Backend, T: Module<B>> {
     pub model: T,
     pub target: T,
-    backend: PhantomData<B>,
+    _backend: PhantomData<B>,
 }
 
 struct SoftUpdater<B: Backend> {
     model_tensor_map: HashMap<ParamId, Box<dyn Any + Send>>, // Contains a mapping from ID to tensors
     tau: f64,
-    backend: PhantomData<B>,
+    _backend: PhantomData<B>,
 }
 
 impl<B: Backend> ModuleVisitor<B> for SoftUpdater<B> {
@@ -44,7 +44,7 @@ impl<B: Backend, T: Module<B>> WithTarget<B, T> {
         WithTarget {
             model,
             target,
-            backend: PhantomData,
+            _backend: Default::default(),
         }
     }
 
@@ -52,14 +52,14 @@ impl<B: Backend, T: Module<B>> WithTarget<B, T> {
         let mut updater: SoftUpdater<B> = SoftUpdater {
             model_tensor_map: HashMap::new(),
             tau,
-            backend: PhantomData,
+            _backend: Default::default(),
         };
         self.model.visit(&mut updater);
         let target = self.target.map(&mut updater);
         WithTarget {
             model: self.model,
             target,
-            backend: PhantomData,
+            _backend: Default::default(),
         }
     }
 }

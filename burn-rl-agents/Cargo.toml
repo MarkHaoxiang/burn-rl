@@ -1,0 +1,9 @@
+[package]
+name = "burn-rl-agents"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+burn = { workspace = true }
+burn-rl = { path = "../burn-rl" }
+gym-rs = { git = "https://github.com/MathisWellmann/gym-rs.git" }

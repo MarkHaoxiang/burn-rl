@@ -3,10 +3,7 @@ type Done = bool;
 
 pub trait Environment {
     type Action;
-    type Config;
     type Observation;
-
-    fn new(cfg: Self::Config) -> Self;
 
     fn reset(&mut self) -> Self::Observation;
 

@@ -1,7 +1,7 @@
 [workspace]
 
 members = [
-    "burn-rl", "experiments"
+    "burn-rl", "burn-rl-agents"
 ]
 
 [workspace.dependencies]
