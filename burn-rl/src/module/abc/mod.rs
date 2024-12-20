@@ -1,12 +1,18 @@
-pub trait Critic {
-    type Observation;
-    type Action;
+use burn::{prelude::Backend, tensor::Tensor};
 
-    fn q(&self, observation: &Self::Observation, action: &Self::Action) -> f64;
+pub trait Critic<B: Backend> {
+    type ObservationBatch;
+    type ActionBatch;
+
+    fn q_batch(
+        &self,
+        observations: &Self::ObservationBatch,
+        actions: &Self::ActionBatch,
+    ) -> Tensor<B, 1>;
 }
 
 pub trait Value {
-    type Observation;
+    type ObservationBatch;
 
-    fn v(&self, observation: &Self::Observation) -> f64;
+    fn v_batch(&self, observations: &Self::ObservationBatch) -> f64;
 }
