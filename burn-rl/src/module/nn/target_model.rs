@@ -87,7 +87,7 @@ mod tests {
     fn test_target_model() {
         // Initialise testing model
         let device = &Default::default();
-        let model: Linear<NdArray> = LinearConfig::new(4, 2).init(device);
+        let model = LinearConfig::new(4, 2).init::<NdArray>(device);
         let mut m = WithTarget::init(model);
 
         // Reset weights

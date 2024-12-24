@@ -5,7 +5,7 @@ use burn::{
     module::AutodiffModule,
     optim::{AdamConfig, Optimizer},
     prelude::*,
-    tensor::backend::AutodiffBackend,
+    tensor::{backend::AutodiffBackend, ElementComparison},
 };
 use burn_rl::{
     data::memory::{Memory, RingbufferMemory},
@@ -31,7 +31,7 @@ fn main() {
 
     let mut rng = StdRng::seed_from_u64(0);
     let env = GymEnvironment::from(CartPoleEnv::new(RenderMode::None));
-    let agent = CartPoleModel::<B>::new();
+    let agent = CartPoleModel::<B>::init(device);
     let memory = RingbufferMemory::<Transition<CartPoleObservation, CartPoleAction>, _>::new(
         10000,
         StdRng::from_seed(rng.gen()),
@@ -100,7 +100,30 @@ where
                 reward,
                 done,
             });
-            observation = next_observation;
+            if done {
+                observation = self.env.reset();
+            } else {
+                observation = next_observation;
+            }
+        }
+
+        // Main Training Loop
+        observation = self.env.reset();
+        for _ in 0..1000 {
+            let action = self.agent.a(observation.clone());
+            let (next_observation, reward, done) = self.env.step(action.clone());
+            self.memory.push(Transition {
+                before: observation,
+                action,
+                after: next_observation.clone(),
+                reward,
+                done,
+            });
+            if done {
+                observation = self.env.reset();
+            } else {
+                observation = next_observation;
+            }
         }
     }
 }
@@ -111,7 +134,7 @@ pub struct CartPoleModel<B: Backend> {
 }
 
 impl<B: Backend> CartPoleModel<B> {
-    pub fn new() -> Self {
+    pub fn init(device: &B::Device) -> Self {
         let config = MultiLayerPerceptronConfig {
             n_hidden_layers: 3,
             input_size: 4,
@@ -119,7 +142,7 @@ impl<B: Backend> CartPoleModel<B> {
             output_size: 2,
         };
         Self {
-            model: config.init(),
+            model: config.init(device),
         }
     }
 }
@@ -146,6 +169,19 @@ impl<B: Backend> Actor for CartPoleModel<B> {
     type A = CartPoleAction;
     type O = CartPoleObservation;
     fn a(&self, observation: Self::O) -> Self::A {
-        todo!()
+        let input = Vec::<f64>::from(observation.clone());
+        let input: Tensor<B, 1> = Tensor::from_floats(&input[0..4], &self.devices()[0]);
+        let out = self.model.forward(input);
+        // CartPoleAction::from(
+        //     out.into_data()
+        //         .as_slice::<f64>()
+        //         .unwrap()
+        //         .into_iter()
+        //         .enumerate()
+        //         .max_by(|(_, a1), (_, a2)| a1.cmp(a2))
+        //         .map(|(i, _)| i)
+        //         .unwrap(),
+        // )
+        CartPoleAction::from(0)
     }
 }

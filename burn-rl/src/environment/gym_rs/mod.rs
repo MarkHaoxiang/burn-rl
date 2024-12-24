@@ -20,6 +20,12 @@ impl<T: Env> GymEnvironment<T> {
 // We need separate implementations for each env
 #[derive(Clone)]
 pub struct CartPoleAction(<CartPoleEnv as Env>::Action);
+impl CartPoleAction {
+    pub fn from(a: usize) -> Self {
+        assert!(a < 2, "{} cartpole action invalid", a);
+        CartPoleAction(a)
+    }
+}
 
 impl Space for CartPoleObservation {
     fn sample<R: rand::Rng>(rng: &mut R) -> Self {
