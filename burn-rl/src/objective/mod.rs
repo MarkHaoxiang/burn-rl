@@ -1,3 +1,2 @@
 pub mod dqn;
-
-mod common;
+pub mod temporal_difference;

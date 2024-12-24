@@ -14,8 +14,8 @@ pub trait Critic<B: Backend> {
     fn q_batch(&self, observations: &Self::OBatch, actions: &Self::ABatch) -> Tensor<B, 1>;
 }
 
-pub trait Value {
+pub trait Value<B: Backend> {
     type OBatch;
 
-    fn v_batch(&self, observations: &Self::OBatch) -> f64;
+    fn v_batch(&self, observations: &Self::OBatch) -> Tensor<B, 1>;
 }

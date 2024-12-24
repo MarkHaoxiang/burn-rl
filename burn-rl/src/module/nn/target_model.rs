@@ -68,7 +68,7 @@ impl<B: Backend, T: Module<B>> WithTarget<B, T> {
 mod tests {
     use burn::{backend::NdArray, module::Param};
     use expect_test::expect;
-    use nn::{Linear, LinearConfig};
+    use nn::LinearConfig;
 
     use super::*;
 

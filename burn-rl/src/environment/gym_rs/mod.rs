@@ -25,6 +25,10 @@ impl CartPoleAction {
         assert!(a < 2, "{} cartpole action invalid", a);
         CartPoleAction(a)
     }
+
+    pub fn a(&self) -> usize {
+        self.0
+    }
 }
 
 impl Space for CartPoleObservation {
