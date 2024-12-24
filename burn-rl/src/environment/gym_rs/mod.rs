@@ -1,6 +1,10 @@
-use gym_rs::core::Env;
+use gym_rs::{
+    core::Env,
+    envs::classical_control::cartpole::{CartPoleEnv, CartPoleObservation},
+    utils::custom::traits::Sample,
+};
 
-use super::Environment;
+use super::{Environment, Space};
 
 pub struct GymEnvironment<T: Env> {
     env: T,
@@ -12,18 +16,34 @@ impl<T: Env> GymEnvironment<T> {
     }
 }
 
-impl<T: Env> Environment for GymEnvironment<T> {
-    type Action = T::Action;
+// Unless we change the upstream definition of spaces,
+// We need separate implementations for each env
+#[derive(Clone)]
+pub struct CartPoleAction(<CartPoleEnv as Env>::Action);
 
-    type Observation = T::Observation;
+impl Space for CartPoleObservation {
+    fn sample<R: rand::Rng>(rng: &mut R) -> Self {
+        CartPoleObservation::sample_between(rng, None)
+    }
+}
 
-    fn reset(&mut self) -> Self::Observation {
-        let (obs, _) = self.env.reset(None, false, None);
-        obs
+impl Space for CartPoleAction {
+    fn sample<R: rand::Rng>(rng: &mut R) -> Self {
+        CartPoleAction(rng.gen_range(0..2))
+    }
+}
+
+impl Environment for GymEnvironment<CartPoleEnv> {
+    type A = CartPoleAction;
+
+    type O = CartPoleObservation;
+
+    fn reset(&mut self) -> Self::O {
+        self.env.reset(None, false, None).0
     }
 
-    fn step(&mut self, action: Self::Action) -> (Self::Observation, super::Reward, super::Done) {
-        let action_reward = self.env.step(action);
+    fn step(&mut self, action: Self::A) -> (Self::O, super::Reward, super::Done) {
+        let action_reward = self.env.step(action.0);
         (
             action_reward.observation,
             *action_reward.reward.as_ref(),

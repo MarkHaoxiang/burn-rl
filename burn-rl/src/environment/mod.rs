@@ -1,13 +1,19 @@
+use rand::Rng;
+
 type Reward = f64;
 type Done = bool;
 
 pub trait Environment {
-    type Action;
-    type Observation;
+    type A: Space;
+    type O: Space;
 
-    fn reset(&mut self) -> Self::Observation;
+    fn reset(&mut self) -> Self::O;
 
-    fn step(&mut self, action: Self::Action) -> (Self::Observation, Reward, Done);
+    fn step(&mut self, action: Self::A) -> (Self::O, Reward, Done);
+}
+
+pub trait Space: Clone {
+    fn sample<R: Rng>(rng: &mut R) -> Self;
 }
 
 pub mod gym_rs;

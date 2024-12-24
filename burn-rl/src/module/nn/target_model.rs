@@ -79,63 +79,36 @@ mod tests {
         Param::initialized(param.id, Tensor::ones_like(&param.val()) * weight)
     }
 
+    fn tensor_string<B: Backend, const D: usize>(tensor: Tensor<B, D>) -> String {
+        format!("{:?}", tensor.into_data().to_vec::<f32>())
+    }
+
     #[test]
     fn test_target_model() {
         // Initialise testing model
         let device = &Default::default();
         let model: Linear<NdArray> = LinearConfig::new(4, 2).init(device);
-        let mut model = WithTarget::init(model);
+        let mut m = WithTarget::init(model);
 
         // Reset weights
-        model.model.weight = reset_weights(&model.model.weight, 1.0);
-        model.model.bias = Some(reset_weights(&model.model.bias.unwrap(), 1.0));
-        model.target.weight = reset_weights(&model.target.weight, 0.0);
-        model.target.bias = Some(reset_weights(&model.target.bias.unwrap(), 0.0));
+        m.model.weight = reset_weights(&m.model.weight, 1.0);
+        m.model.bias = Some(reset_weights(&m.model.bias.unwrap(), 1.0));
+        m.target.weight = reset_weights(&m.target.weight, 0.0);
+        m.target.bias = Some(reset_weights(&m.target.bias.unwrap(), 0.0));
 
         // Generate
-        let x = [[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]];
-        let x = Tensor::<NdArray, 2>::from_floats(x, device);
-        let model_expected = expect![[r#"
-            Tensor {
-              data:
-            [[11.0, 11.0],
-             [27.0, 27.0]],
-              shape:  [2, 2],
-              device:  Cpu,
-              backend:  "ndarray",
-              kind:  "Float",
-              dtype:  "f32",
-            }"#]];
-        model_expected.assert_eq(&model.model.forward(x.clone()).to_string());
-        let target_expected = expect![[r#"
-            Tensor {
-              data:
-            [[0.0, 0.0],
-             [0.0, 0.0]],
-              shape:  [2, 2],
-              device:  Cpu,
-              backend:  "ndarray",
-              kind:  "Float",
-              dtype:  "f32",
-            }"#]];
-        target_expected.assert_eq(&model.target.forward(x.clone()).to_string());
+        let x = Tensor::<NdArray, 2>::from_floats([[1.0, 2.0, 3.0, 4.0]], device);
+        let m_expected = expect!["Ok([11.0, 11.0])"];
+        let t_expected = expect!["Ok([0.0, 0.0])"];
+        m_expected.assert_eq(&tensor_string(m.model.forward(x.clone())));
+        t_expected.assert_eq(&tensor_string(m.target.forward(x.clone())));
 
-        let model = model.update_target_model(0.5);
-        let target_expected = expect![[r#"
-            Tensor {
-              data:
-            [[5.5, 5.5],
-             [13.5, 13.5]],
-              shape:  [2, 2],
-              device:  Cpu,
-              backend:  "ndarray",
-              kind:  "Float",
-              dtype:  "f32",
-            }"#]];
-        target_expected.assert_eq(&model.target.forward(x.clone()).to_string());
+        let model = m.update_target_model(0.5);
+        let t_expected = expect!["Ok([5.5, 5.5])"];
+        t_expected.assert_eq(&tensor_string(model.target.forward(x.clone())));
 
-        let model = model.update_target_model(1.0);
-        model_expected.assert_eq(&model.model.forward(x.clone()).to_string());
-        model_expected.assert_eq(&model.target.forward(x.clone()).to_string());
+        let m = model.update_target_model(1.0);
+        m_expected.assert_eq(&tensor_string(m.model.forward(x.clone())));
+        m_expected.assert_eq(&tensor_string(m.target.forward(x.clone())));
     }
 }

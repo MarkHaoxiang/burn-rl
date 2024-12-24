@@ -1,10 +1,13 @@
 use rand::{seq::IteratorRandom, Rng};
 use ringbuffer::{AllocRingBuffer, RingBuffer};
 
-pub trait Memory<T, TBatch> {
-    fn push(&mut self, value: T);
+pub trait Memory {
+    type T;
+    type TBatch;
 
-    fn sample_random_batch(&mut self, n: usize) -> TBatch;
+    fn push(&mut self, value: Self::T);
+
+    fn sample_random_batch(&mut self, n: usize) -> Self::TBatch;
 }
 
 pub struct RingbufferMemory<T: Clone, R: Rng> {
@@ -21,7 +24,10 @@ impl<T: Clone, R: Rng> RingbufferMemory<T, R> {
     }
 }
 
-impl<T: Clone, R: Rng> Memory<T, Vec<T>> for RingbufferMemory<T, R> {
+impl<T: Clone, R: Rng> Memory for RingbufferMemory<T, R> {
+    type T = T;
+    type TBatch = Vec<T>;
+
     fn push(&mut self, value: T) {
         self.buffer.push(value);
     }
