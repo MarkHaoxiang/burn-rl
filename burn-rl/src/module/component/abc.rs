@@ -11,7 +11,7 @@ pub trait Actor {
     type O; // Observation
     type A; // Action
 
-    fn a(&self, observation: Self::O) -> Self::A;
+    fn a(&self, observation: &Self::O) -> Self::A;
 }
 
 pub trait Value<B: Backend> {

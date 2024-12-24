@@ -8,17 +8,17 @@ use burn::{
     tensor::{backend::AutodiffBackend, ElementComparison},
 };
 use burn_rl::{
-    data::memory::{Memory, RingbufferMemory},
+    data::{
+        memory::{Memory, RingbufferMemory},
+        util::{collect_multiple, collect_single, Transition},
+    },
     environment::{
         gym_rs::{CartPoleAction, GymEnvironment},
         Environment, Space,
     },
     module::{
         component::{Actor, Critic, Value},
-        nn::{
-            multi_layer_perceptron::{MultiLayerPerceptron, MultiLayerPerceptronConfig},
-            target_model::WithTarget,
-        },
+        nn::multi_layer_perceptron::{MultiLayerPerceptron, MultiLayerPerceptronConfig},
     },
     objective::temporal_difference::temporal_difference,
 };
@@ -36,8 +36,9 @@ fn main() {
     let mut rng = StdRng::seed_from_u64(0);
     let env = GymEnvironment::from(CartPoleEnv::new(RenderMode::None));
     let agent = CartPoleModel::<B>::init(device);
+    // let agent = WithTarget::new(agent);
 
-    let memory = RingbufferMemory::<Transition<CartPoleObservation, CartPoleAction>, _>::new(
+    let memory = RingbufferMemory::<Transition<GymEnvironment<CartPoleEnv>>, _>::new(
         10000,
         StdRng::from_seed(rng.gen()),
     );
@@ -54,16 +55,7 @@ fn main() {
     };
 
     // Execute Training Loop
-    algorithm.train(1000);
-}
-
-#[derive(Clone)]
-pub struct Transition<O, A> {
-    pub before: O,
-    pub action: A,
-    pub after: O,
-    pub reward: f64,
-    pub done: bool,
+    algorithm.train();
 }
 
 pub struct OffPolicyAlgorithm<B, E, A, M, O, R>
@@ -74,7 +66,7 @@ where
         + Actor<O = E::O, A = E::A>
         + Critic<B, OBatch = Vec<E::O>, ABatch = Vec<E::A>>
         + Value<B, OBatch = Vec<E::O>>,
-    M: Memory<T = Transition<E::O, E::A>, TBatch = Vec<Transition<E::O, E::A>>>,
+    M: Memory<T = Transition<E>, TBatch = Vec<Transition<E>>>,
     O: Optimizer<A, B>,
     R: Rng,
 {
@@ -94,48 +86,25 @@ where
         + Actor<O = E::O, A = E::A>
         + Critic<B, OBatch = Vec<E::O>, ABatch = Vec<E::A>>
         + Value<B, OBatch = Vec<E::O>>,
-    M: Memory<T = Transition<E::O, E::A>, TBatch = Vec<Transition<E::O, E::A>>>,
+    M: Memory<T = Transition<E>, TBatch = Vec<Transition<E>>>,
     O: Optimizer<A, B>,
     R: Rng,
 {
-    pub fn train(mut self, n_frames: usize) {
+    pub fn train(mut self) {
         // Early Start
-        let mut observation = self.env.reset();
-        for _ in 0..1000 {
-            let action = <E::A>::sample(&mut self.rng);
-            let (next_observation, reward, done) = self.env.step(action.clone());
-            self.memory.push(Transition {
-                before: observation,
-                action,
-                after: next_observation.clone(),
-                reward,
-                done,
-            });
-            if done {
-                observation = self.env.reset();
-            } else {
-                observation = next_observation;
-            }
-        }
+        let mut policy = |_: &E::O| <E::A>::sample(&mut self.rng);
+        let transitions = collect_multiple(&mut self.env, None, &mut policy, 1000);
+        let _ = transitions.into_iter().map(|x| self.memory.push(x));
 
         // Main Training Loop
-        observation = self.env.reset();
+        let mut observation = self.env.reset();
         for _ in 0..1000 {
             // Step Environment
-            let action = self.agent.a(observation.clone());
-            let (next_observation, reward, done) = self.env.step(action.clone());
-            self.memory.push(Transition {
-                before: observation,
-                action,
-                after: next_observation.clone(),
-                reward,
-                done,
-            });
-            if done {
-                observation = self.env.reset();
-            } else {
-                observation = next_observation;
-            }
+            let transition =
+                collect_single(&mut self.env, Some(observation), &mut |o| self.agent.a(o));
+            observation = transition.after.clone();
+            self.memory.push(transition);
+
             // Sample batch
             let batch = self.memory.sample_random_batch(32);
             let before = batch.iter().map(|x| x.before.clone()).collect();
@@ -233,7 +202,7 @@ impl<B: Backend> Value<B> for CartPoleModel<B> {
 impl<B: Backend> Actor for CartPoleModel<B> {
     type A = CartPoleAction;
     type O = CartPoleObservation;
-    fn a(&self, observation: Self::O) -> Self::A {
+    fn a(&self, observation: &Self::O) -> Self::A {
         let input = Vec::<f64>::from(observation.clone());
         let input: Tensor<B, 1> = Tensor::from_floats(&input[0..4], &self.devices()[0]);
         let out = self.model.forward(input);

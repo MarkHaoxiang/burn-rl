@@ -40,7 +40,7 @@ impl<B: Backend> ModuleMapper<B> for SoftUpdater<B> {
 }
 
 impl<B: Backend, T: Module<B>> WithTarget<B, T> {
-    pub fn init(model: T) -> Self {
+    pub fn new(model: T) -> Self {
         let target = model.clone();
         WithTarget {
             model,
@@ -95,7 +95,7 @@ mod tests {
         // Initialise testing model
         let device = &Default::default();
         let model = LinearConfig::new(4, 2).init::<NdArray>(device);
-        let mut m = WithTarget::init(model);
+        let mut m = WithTarget::new(model);
 
         // Reset weights
         m.model.weight = reset_weights(&m.model.weight, 1.0);
