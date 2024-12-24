@@ -24,6 +24,15 @@ where
     }
 }
 
+impl<E: Environment> Transition<E> {
+    pub fn to_nested_tuple(self) -> (E::O, (E::A, (E::O, (f64, bool)))) {
+        (
+            self.before,
+            (self.action, (self.after, (self.reward, self.done))),
+        )
+    }
+}
+
 pub fn collect_multiple<E: Environment, P: FnMut(&E::O) -> E::A>(
     env: &mut E,
     observation: Option<E::O>,

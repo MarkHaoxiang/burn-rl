@@ -116,11 +116,10 @@ where
 
             // Sample batch
             let batch = self.memory.sample_random_batch(32);
-            let before = batch.iter().map(|x| x.before.clone()).collect();
-            let action = batch.iter().map(|x| x.action.clone()).collect();
-            let after = batch.iter().map(|x| x.after.clone()).collect();
-            let reward: Vec<f64> = batch.iter().map(|x| x.reward).collect();
-            let done: Vec<bool> = batch.iter().map(|x| x.done).collect();
+            let (before, (action, (after, (reward, done)))): (
+                Vec<E::O>,
+                (Vec<E::A>, (Vec<E::O>, (Vec<f64>, Vec<bool>))),
+            ) = batch.iter().map(|x| x.clone().to_nested_tuple()).unzip();
 
             let reward = Tensor::from_floats(reward.as_slice(), &Default::default());
             let done = Tensor::from_floats(
