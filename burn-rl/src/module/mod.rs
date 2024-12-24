@@ -1,2 +1,2 @@
-pub mod abc;
+pub mod component;
 pub mod nn;

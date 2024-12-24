@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use burn::{
     backend::{Autodiff, NdArray},
     module::AutodiffModule,
-    optim::{AdamConfig, Optimizer},
+    optim::{AdamConfig, GradientsParams, Optimizer},
     prelude::*,
     tensor::{backend::AutodiffBackend, ElementComparison},
 };
@@ -14,8 +14,11 @@ use burn_rl::{
         Environment, Space,
     },
     module::{
-        abc::{Actor, Critic, Value},
-        nn::multi_layer_perceptron::{MultiLayerPerceptron, MultiLayerPerceptronConfig},
+        component::{Actor, Critic, Value},
+        nn::{
+            multi_layer_perceptron::{MultiLayerPerceptron, MultiLayerPerceptronConfig},
+            target_model::WithTarget,
+        },
     },
     objective::temporal_difference::temporal_difference,
 };
@@ -33,6 +36,7 @@ fn main() {
     let mut rng = StdRng::seed_from_u64(0);
     let env = GymEnvironment::from(CartPoleEnv::new(RenderMode::None));
     let agent = CartPoleModel::<B>::init(device);
+
     let memory = RingbufferMemory::<Transition<CartPoleObservation, CartPoleAction>, _>::new(
         10000,
         StdRng::from_seed(rng.gen()),
@@ -66,7 +70,10 @@ pub struct OffPolicyAlgorithm<B, E, A, M, O, R>
 where
     E: Environment,
     B: AutodiffBackend,
-    A: AutodiffModule<B> + Actor<O = E::O, A = E::A> + Critic<B> + Value<B>,
+    A: AutodiffModule<B>
+        + Actor<O = E::O, A = E::A>
+        + Critic<B, OBatch = Vec<E::O>, ABatch = Vec<E::A>>
+        + Value<B, OBatch = Vec<E::O>>,
     M: Memory<T = Transition<E::O, E::A>, TBatch = Vec<Transition<E::O, E::A>>>,
     O: Optimizer<A, B>,
     R: Rng,
@@ -147,7 +154,9 @@ where
             )
             .bool();
 
+            // Target Networks
             let pred_value_given_action_before = self.agent.q_batch(&before, &action);
+
             let pred_value_after = self.agent.v_batch(&after);
 
             let error = temporal_difference(
@@ -157,6 +166,11 @@ where
                 done,
                 0.99,
             );
+
+            let loss = error.powf_scalar(2).mean();
+            let grads = loss.backward();
+            let grads = GradientsParams::from_grads(grads, &self.agent);
+            self.agent = self.optim.step(0.003, self.agent, grads);
         }
     }
 }

@@ -1,13 +1,14 @@
 use burn::{
-    module::{ModuleMapper, ModuleVisitor, ParamId},
+    module::{AutodiffModule, ModuleMapper, ModuleVisitor, ParamId},
     prelude::*,
+    tensor::backend::AutodiffBackend,
 };
 use std::{any::Any, collections::HashMap, marker::PhantomData};
 
 #[derive(Module, Debug)]
 pub struct WithTarget<B: Backend, T: Module<B>> {
     pub model: T,
-    pub target: T,
+    target: T,
     _backend: PhantomData<B>,
 }
 
@@ -61,6 +62,12 @@ impl<B: Backend, T: Module<B>> WithTarget<B, T> {
             target,
             _backend: Default::default(),
         }
+    }
+}
+
+impl<B: AutodiffBackend, T: AutodiffModule<B>> WithTarget<B, T> {
+    pub fn target_valid(&self) -> T::InnerModule {
+        self.target.valid()
     }
 }
 
