@@ -8,7 +8,7 @@ use std::{any::Any, collections::HashMap, marker::PhantomData};
 #[derive(Module, Debug)]
 pub struct WithTarget<B: Backend, T: Module<B>> {
     pub model: T,
-    target: T,
+    pub target: T,
     _backend: PhantomData<B>,
 }
 
@@ -41,7 +41,7 @@ impl<B: Backend> ModuleMapper<B> for SoftUpdater<B> {
 
 impl<B: Backend, T: Module<B>> WithTarget<B, T> {
     pub fn new(model: T) -> Self {
-        let target = model.clone();
+        let target = model.clone().no_grad();
         WithTarget {
             model,
             target,

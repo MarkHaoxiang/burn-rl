@@ -18,9 +18,12 @@ use burn_rl::{
     },
     module::{
         component::{Actor, Critic, Value},
-        nn::multi_layer_perceptron::{MultiLayerPerceptron, MultiLayerPerceptronConfig},
+        nn::{
+            multi_layer_perceptron::{MultiLayerPerceptron, MultiLayerPerceptronConfig},
+            target_model::WithTarget,
+        },
     },
-    objective::temporal_difference::temporal_difference,
+    objective::dqn::DeepQNetworkLossConfig,
 };
 use gym_rs::{
     envs::classical_control::cartpole::{CartPoleEnv, CartPoleObservation},
@@ -36,7 +39,7 @@ fn main() {
     let mut rng = StdRng::seed_from_u64(0);
     let env = GymEnvironment::from(CartPoleEnv::new(RenderMode::None));
     let agent = CartPoleModel::<B>::init(device);
-    // let agent = WithTarget::new(agent);
+    let agent = WithTarget::new(agent);
 
     let memory = RingbufferMemory::<Transition<GymEnvironment<CartPoleEnv>>, _>::new(
         10000,
@@ -64,14 +67,14 @@ where
     B: AutodiffBackend,
     A: AutodiffModule<B>
         + Actor<O = E::O, A = E::A>
-        + Critic<B, OBatch = Vec<E::O>, ABatch = Vec<E::A>>
-        + Value<B, OBatch = Vec<E::O>>,
+        + Value<B, OBatch = Vec<E::O>>
+        + Critic<B, OBatch = Vec<E::O>, ABatch = Vec<E::A>>,
     M: Memory<T = Transition<E>, TBatch = Vec<Transition<E>>>,
     O: Optimizer<A, B>,
     R: Rng,
 {
     env: E,
-    agent: A,
+    agent: WithTarget<B, A>,
     memory: M,
     optim: O,
     rng: R,
@@ -84,8 +87,8 @@ where
     B: AutodiffBackend,
     A: AutodiffModule<B>
         + Actor<O = E::O, A = E::A>
-        + Critic<B, OBatch = Vec<E::O>, ABatch = Vec<E::A>>
-        + Value<B, OBatch = Vec<E::O>>,
+        + Value<B, OBatch = Vec<E::O>>
+        + Critic<B, OBatch = Vec<E::O>, ABatch = Vec<E::A>>,
     M: Memory<T = Transition<E>, TBatch = Vec<Transition<E>>>,
     O: Optimizer<A, B>,
     R: Rng,
@@ -96,12 +99,18 @@ where
         let transitions = collect_multiple(&mut self.env, None, &mut policy, 1000);
         let _ = transitions.into_iter().map(|x| self.memory.push(x));
 
+        let dqn = DeepQNetworkLossConfig {
+            discount_factor: 0.99,
+        }
+        .init();
+
         // Main Training Loop
         let mut observation = self.env.reset();
         for _ in 0..1000 {
             // Step Environment
-            let transition =
-                collect_single(&mut self.env, Some(observation), &mut |o| self.agent.a(o));
+            let transition = collect_single(&mut self.env, Some(observation), &mut |o| {
+                self.agent.model.a(o)
+            });
             observation = transition.after.clone();
             self.memory.push(transition);
 
@@ -123,23 +132,19 @@ where
             )
             .bool();
 
-            // Target Networks
-            let pred_value_given_action_before = self.agent.q_batch(&before, &action);
-
-            let pred_value_after = self.agent.v_batch(&after);
-
-            let error = temporal_difference(
+            let loss = dqn.forward(
+                &self.agent,
+                &before,
+                &action,
+                &after,
                 reward,
-                pred_value_given_action_before,
-                pred_value_after,
                 done,
-                0.99,
+                nn::loss::Reduction::Mean,
             );
 
-            let loss = error.powf_scalar(2).mean();
             let grads = loss.backward();
-            let grads = GradientsParams::from_grads(grads, &self.agent);
-            self.agent = self.optim.step(0.003, self.agent, grads);
+            let grads = GradientsParams::from_grads(grads, &self.agent.model);
+            self.agent.model = self.optim.step(0.003, self.agent.model, grads);
         }
     }
 }

@@ -1,9 +1,17 @@
 use std::fmt::Debug;
 
-use burn::{prelude::*, tensor::TensorKind};
+use burn::{module::AutodiffModule, prelude::*, tensor::backend::AutodiffBackend};
+use nn::loss::Reduction;
+
+use crate::module::{
+    component::{Critic, Value},
+    nn::target_model::WithTarget,
+};
+
+use super::temporal_difference::temporal_difference;
 
 pub struct DeepQNetworkLossConfig {
-    discount_factor: f64,
+    pub discount_factor: f64,
 }
 
 impl DeepQNetworkLossConfig {
@@ -29,13 +37,37 @@ pub struct DeepQNetworkLoss {
 }
 
 impl DeepQNetworkLoss {
-    pub fn forward<B: Backend, const D: usize, A: TensorKind<B>, O: TensorKind<B>>(
+    pub fn forward<B, M, OBatch, ABatch>(
         &self,
-        before: Tensor<B, D, O>,
-        action: Tensor<B, D, A>,
-        after: Tensor<B, D, O>,
-        done: Tensor<B, D, Bool>,
-    ) {
-        todo!()
+        model: &WithTarget<B, M>,
+        before: &OBatch,
+        action: &ABatch,
+        after: &OBatch,
+        reward: Tensor<B, 1>,
+        done: Tensor<B, 1, Bool>,
+        reduction: Reduction,
+    ) -> Tensor<B, 1>
+    where
+        B: AutodiffBackend,
+        M: AutodiffModule<B>
+            + Critic<B, OBatch = OBatch, ABatch = ABatch>
+            + Value<B, OBatch = OBatch>,
+    {
+        let pred_value_given_action_before = model.model.q_batch(before, action);
+        let pred_value_after = model.target.v_batch(after);
+
+        let tensor = temporal_difference(
+            reward,
+            pred_value_given_action_before,
+            pred_value_after,
+            done,
+            self.discount_factor,
+        )
+        .powf_scalar(2.0);
+
+        match reduction {
+            Reduction::Mean | Reduction::Auto => tensor.mean(),
+            Reduction::Sum => tensor.sum(),
+        }
     }
 }
