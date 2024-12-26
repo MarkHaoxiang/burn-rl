@@ -8,8 +8,8 @@ pub trait Critic<B: Backend> {
 }
 
 pub trait Actor {
-    type O; // Observation
     type A; // Action
+    type O; // Observation
 
     fn a(&self, observation: &Self::O) -> Self::A;
 }

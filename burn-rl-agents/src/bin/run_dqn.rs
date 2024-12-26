@@ -1,30 +1,18 @@
-use std::marker::PhantomData;
-
 use burn::{
     backend::{Autodiff, NdArray},
-    module::AutodiffModule,
-    optim::{AdamConfig, GradientsParams, Optimizer},
+    optim::AdamConfig,
     prelude::*,
-    tensor::{backend::AutodiffBackend, ElementComparison},
+    tensor::ElementComparison,
 };
 use burn_rl::{
-    data::{
-        memory::{Memory, RingbufferMemory},
-        util::{collect_multiple, collect_single, Transition},
-    },
-    environment::{
-        gym_rs::{CartPoleAction, GymEnvironment},
-        Environment, Space,
-    },
+    data::{memory::RingbufferMemory, util::Transition},
+    environment::gym_rs::{CartPoleAction, GymEnvironment},
     module::{
         component::{Actor, Critic, Value},
-        nn::{
-            multi_layer_perceptron::{MultiLayerPerceptron, MultiLayerPerceptronConfig},
-            target_model::WithTarget,
-        },
+        nn::multi_layer_perceptron::{MultiLayerPerceptron, MultiLayerPerceptronConfig},
     },
-    objective::dqn::DeepQNetworkLossConfig,
 };
+use burn_rl_agents::{dqn::DeepQNetworkAgent, off_policy::OffPolicyAlgorithm};
 use gym_rs::{
     envs::classical_control::cartpole::{CartPoleEnv, CartPoleObservation},
     utils::renderer::RenderMode,
@@ -35,117 +23,33 @@ fn main() {
     println!("Running Deep Q-Learning Agent");
     type B = Autodiff<NdArray>;
     let device: &Device<B> = &Default::default();
-
     let mut rng = StdRng::seed_from_u64(0);
-    let env = GymEnvironment::from(CartPoleEnv::new(RenderMode::None));
-    let agent = CartPoleModel::<B>::init(device);
-    let agent = WithTarget::new(agent);
 
+    // Construct environment
+    let env = GymEnvironment::from(CartPoleEnv::new(RenderMode::None));
+
+    // Construct agent
+    let dqn_model = CartPoleModel::<B>::init(device);
+    let optim = AdamConfig::new().init();
+    let agent = DeepQNetworkAgent::new(dqn_model, optim);
+
+    // Construct memory
     let memory = RingbufferMemory::<Transition<GymEnvironment<CartPoleEnv>>, _>::new(
         10000,
         StdRng::from_seed(rng.gen()),
     );
-    let optim = AdamConfig::new().init();
 
     // Algorithm
     let algorithm = OffPolicyAlgorithm {
         env,
         agent,
         memory,
-        optim,
         rng,
         _phantom: Default::default(),
     };
 
     // Execute Training Loop
     algorithm.train();
-}
-
-pub struct OffPolicyAlgorithm<B, E, A, M, O, R>
-where
-    E: Environment,
-    B: AutodiffBackend,
-    A: AutodiffModule<B>
-        + Actor<O = E::O, A = E::A>
-        + Value<B, OBatch = Vec<E::O>>
-        + Critic<B, OBatch = Vec<E::O>, ABatch = Vec<E::A>>,
-    M: Memory<T = Transition<E>, TBatch = Vec<Transition<E>>>,
-    O: Optimizer<A, B>,
-    R: Rng,
-{
-    env: E,
-    agent: WithTarget<B, A>,
-    memory: M,
-    optim: O,
-    rng: R,
-    _phantom: PhantomData<B>,
-}
-
-impl<B, E, A, M, O, R> OffPolicyAlgorithm<B, E, A, M, O, R>
-where
-    E: Environment,
-    B: AutodiffBackend,
-    A: AutodiffModule<B>
-        + Actor<O = E::O, A = E::A>
-        + Value<B, OBatch = Vec<E::O>>
-        + Critic<B, OBatch = Vec<E::O>, ABatch = Vec<E::A>>,
-    M: Memory<T = Transition<E>, TBatch = Vec<Transition<E>>>,
-    O: Optimizer<A, B>,
-    R: Rng,
-{
-    pub fn train(mut self) {
-        // Early Start
-        let mut policy = |_: &E::O| <E::A>::sample(&mut self.rng);
-        let transitions = collect_multiple(&mut self.env, None, &mut policy, 1000);
-        let _ = transitions.into_iter().map(|x| self.memory.push(x));
-
-        let dqn = DeepQNetworkLossConfig {
-            discount_factor: 0.99,
-        }
-        .init();
-
-        // Main Training Loop
-        let mut observation = self.env.reset();
-        for _ in 0..1000 {
-            // Step Environment
-            let transition = collect_single(&mut self.env, Some(observation), &mut |o| {
-                self.agent.model.a(o)
-            });
-            observation = transition.after.clone();
-            self.memory.push(transition);
-
-            // Sample batch
-            let batch = self.memory.sample_random_batch(32);
-            let (before, (action, (after, (reward, done)))): (
-                Vec<E::O>,
-                (Vec<E::A>, (Vec<E::O>, (Vec<f64>, Vec<bool>))),
-            ) = batch.iter().map(|x| x.clone().to_nested_tuple()).unzip();
-
-            let reward = Tensor::from_floats(reward.as_slice(), &Default::default());
-            let done = Tensor::from_floats(
-                done.into_iter()
-                    .map(|x| if x { 1.0 } else { 0.0 })
-                    .collect::<Vec<f32>>()
-                    .as_slice(),
-                &Default::default(),
-            )
-            .bool();
-
-            let loss = dqn.forward(
-                &self.agent,
-                &before,
-                &action,
-                &after,
-                reward,
-                done,
-                nn::loss::Reduction::Mean,
-            );
-
-            let grads = loss.backward();
-            let grads = GradientsParams::from_grads(grads, &self.agent.model);
-            self.agent.model = self.optim.step(0.003, self.agent.model, grads);
-        }
-    }
 }
 
 #[derive(Module, Debug)]
@@ -156,7 +60,7 @@ pub struct CartPoleModel<B: Backend> {
 impl<B: Backend> CartPoleModel<B> {
     pub fn init(device: &B::Device) -> Self {
         let config = MultiLayerPerceptronConfig {
-            n_hidden_layers: 3,
+            n_hidden_layers: 2,
             input_size: 4,
             hidden_size: 32,
             output_size: 2,

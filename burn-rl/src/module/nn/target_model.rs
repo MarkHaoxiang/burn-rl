@@ -49,19 +49,15 @@ impl<B: Backend, T: Module<B>> WithTarget<B, T> {
         }
     }
 
-    pub fn update_target_model(self, tau: f64) -> Self {
+    pub fn update_target_model(mut self, tau: f64) -> Self {
         let mut updater: SoftUpdater<B> = SoftUpdater {
             model_tensor_map: HashMap::new(),
             tau,
             _backend: Default::default(),
         };
         self.model.visit(&mut updater);
-        let target = self.target.map(&mut updater);
-        WithTarget {
-            model: self.model,
-            target,
-            _backend: Default::default(),
-        }
+        self.target = self.target.map(&mut updater);
+        self
     }
 }
 
