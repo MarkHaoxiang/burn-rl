@@ -37,7 +37,7 @@ pub fn collect_multiple<E: Environment, P: FnMut(&E::O) -> E::A>(
     env: &mut E,
     observation: Option<E::O>,
     policy: &mut P,
-    n_steps: usize,
+    n_steps: u64,
 ) -> Vec<Transition<E>> {
     let mut before = match observation {
         Some(observation) => observation,

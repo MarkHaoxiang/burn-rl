@@ -12,7 +12,7 @@ use burn_rl::{
         nn::multi_layer_perceptron::{MultiLayerPerceptron, MultiLayerPerceptronConfig},
     },
 };
-use burn_rl_agents::{dqn::DeepQNetworkAgent, off_policy::OffPolicyAlgorithm};
+use burn_rl_agents::{dqn::DeepQNetworkAgentConfig, off_policy::OffPolicyAlgorithmConfig};
 use gym_rs::{
     envs::classical_control::cartpole::{CartPoleEnv, CartPoleObservation},
     utils::renderer::RenderMode,
@@ -31,7 +31,7 @@ fn main() {
     // Construct agent
     let dqn_model = CartPoleModel::<B>::init(device);
     let optim = AdamConfig::new().init();
-    let agent = DeepQNetworkAgent::new(dqn_model, optim);
+    let agent = DeepQNetworkAgentConfig::new().init(dqn_model, optim);
 
     // Construct memory
     let memory = RingbufferMemory::<Transition<GymEnvironment<CartPoleEnv>>, _>::new(
@@ -40,13 +40,7 @@ fn main() {
     );
 
     // Algorithm
-    let algorithm = OffPolicyAlgorithm {
-        env,
-        agent,
-        memory,
-        rng,
-        _phantom: Default::default(),
-    };
+    let algorithm = OffPolicyAlgorithmConfig::new(10_000).init(env, agent, memory, rng);
 
     // Execute Training Loop
     algorithm.train();

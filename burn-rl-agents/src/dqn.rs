@@ -18,6 +18,35 @@ use burn_rl::{
 
 use crate::off_policy::OffPolicyAgent;
 
+#[derive(Config)]
+pub struct DeepQNetworkAgentConfig {
+    #[config(default = 0.99)]
+    discount_factor: f64,
+    #[config(default = 100)]
+    target_network_update_interval: u32,
+}
+
+impl DeepQNetworkAgentConfig {
+    pub fn init<B, M, O>(&self, dqn_model: M, optim: O) -> DeepQNetworkAgent<B, M, O>
+    where
+        B: AutodiffBackend,
+        M: AutodiffModule<B> + Actor + Value<B> + Critic<B>,
+        O: Optimizer<M, B>,
+    {
+        let loss = DeepQNetworkLossConfig::new()
+            .with_discount_factor(self.discount_factor)
+            .init();
+        DeepQNetworkAgent {
+            dqn_model: WithTarget::new(dqn_model),
+            update_counter: 0,
+            loss,
+            target_network_update_interval: self.target_network_update_interval,
+            optim,
+            _phantom: Default::default(),
+        }
+    }
+}
+
 pub struct DeepQNetworkAgent<B, M, O>
 where
     B: AutodiffBackend,
@@ -25,30 +54,11 @@ where
     O: Optimizer<M, B>,
 {
     dqn_model: WithTarget<B, M>,
-    update_counter: i32,
+    update_counter: u32,
+    target_network_update_interval: u32,
     loss: DeepQNetworkLoss,
     optim: O,
     _phantom: PhantomData<B>,
-}
-
-impl<B, M, O> DeepQNetworkAgent<B, M, O>
-where
-    B: AutodiffBackend,
-    M: AutodiffModule<B> + Actor + Value<B> + Critic<B>,
-    O: Optimizer<M, B>,
-{
-    pub fn new(dqn_model: M, optim: O) -> Self {
-        let loss = DeepQNetworkLossConfig {
-            discount_factor: 0.99,
-        };
-        Self {
-            dqn_model: WithTarget::new(dqn_model),
-            update_counter: 0,
-            loss: loss.init(),
-            optim,
-            _phantom: Default::default(),
-        }
-    }
 }
 
 impl<B, M, O> Actor for DeepQNetworkAgent<B, M, O>
@@ -111,7 +121,7 @@ where
         self.dqn_model.model = self.optim.step(0.003, self.dqn_model.model, grads);
 
         // Update target network
-        if self.update_counter % 100 == 0 {
+        if self.update_counter % self.target_network_update_interval == 0 {
             self.update_counter = 0;
             self.dqn_model = self.dqn_model.update_target_model(1.0);
         }

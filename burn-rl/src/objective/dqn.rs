@@ -10,8 +10,10 @@ use crate::module::{
 
 use super::temporal_difference::temporal_difference;
 
+#[derive(Config)]
 pub struct DeepQNetworkLossConfig {
-    pub discount_factor: f64,
+    #[config(default = 0.99)]
+    discount_factor: f64,
 }
 
 impl DeepQNetworkLossConfig {
