@@ -7,6 +7,8 @@ pub trait Memory {
 
     fn push(&mut self, value: Self::T);
 
+    fn append(&mut self, values: Self::TBatch);
+
     fn sample_random_batch(&mut self, n: usize) -> Self::TBatch;
 }
 
@@ -30,6 +32,12 @@ impl<T: Clone, R: Rng> Memory for RingbufferMemory<T, R> {
 
     fn push(&mut self, value: T) {
         self.buffer.push(value);
+    }
+
+    fn append(&mut self, values: Self::TBatch) {
+        for value in values {
+            self.push(value);
+        }
     }
 
     fn sample_random_batch(&mut self, n: usize) -> Vec<T> {

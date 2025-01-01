@@ -5,4 +5,4 @@ members = [
 ]
 
 [workspace.dependencies]
-burn = { version = "0.15", features = ["ndarray", "wgpu", "autodiff"] }
+burn = { version = "0.15", features = ["ndarray", "wgpu", "autodiff", "tch"] }

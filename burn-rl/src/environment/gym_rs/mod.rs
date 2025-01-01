@@ -48,8 +48,8 @@ impl Environment for GymEnvironment<CartPoleEnv> {
 
     type O = CartPoleObservation;
 
-    fn reset(&mut self) -> Self::O {
-        self.env.reset(None, false, None).0
+    fn reset(&mut self, seed: Option<u64>) -> Self::O {
+        self.env.reset(seed, false, None).0
     }
 
     fn step(&mut self, action: Self::A) -> (Self::O, super::Reward, super::Done) {

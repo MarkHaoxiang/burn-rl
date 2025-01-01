@@ -20,7 +20,7 @@ pub trait OffPolicyAgent<B: AutodiffBackend, TBatch>: Actor {
 
 #[derive(Config)]
 pub struct OffPolicyAlgorithmConfig {
-    #[config(default = 10_000)]
+    #[config(default = 1_000)]
     early_start_steps: u64,
     training_steps: u64,
     batch_size: usize,
@@ -30,12 +30,13 @@ pub struct OffPolicyAlgorithm<B, E, A, M, R>
 where
     E: Environment,
     B: AutodiffBackend,
-    A: OffPolicyAgent<B, Vec<Transition<E>>, A = E::A, O = E::O>,
-    M: Memory<T = Transition<E>, TBatch = Vec<Transition<E>>>,
+    A: OffPolicyAgent<B, Vec<Transition<E::O, E::A>>, A = E::A, O = E::O>,
+    M: Memory<T = Transition<E::O, E::A>, TBatch = Vec<Transition<E::O, E::A>>>,
     R: Rng,
 {
     cfg: OffPolicyAlgorithmConfig,
     env: E,
+    eval_env: E,
     agent: A,
     memory: M,
     rng: R,
@@ -46,6 +47,7 @@ impl OffPolicyAlgorithmConfig {
     pub fn init<A, B, E, M, R>(
         &self,
         env: E,
+        eval_env: E,
         agent: A,
         memory: M,
         rng: R,
@@ -53,13 +55,14 @@ impl OffPolicyAlgorithmConfig {
     where
         E: Environment,
         B: AutodiffBackend,
-        A: OffPolicyAgent<B, Vec<Transition<E>>, A = E::A, O = E::O>,
-        M: Memory<T = Transition<E>, TBatch = Vec<Transition<E>>>,
+        A: OffPolicyAgent<B, Vec<Transition<E::O, E::A>>, A = E::A, O = E::O>,
+        M: Memory<T = Transition<E::O, E::A>, TBatch = Vec<Transition<E::O, E::A>>>,
         R: Rng,
     {
         OffPolicyAlgorithm {
             cfg: self.clone(),
             env,
+            eval_env,
             agent,
             memory,
             rng,
@@ -72,11 +75,14 @@ impl<B, E, A, M, R> OffPolicyAlgorithm<B, E, A, M, R>
 where
     E: Environment,
     B: AutodiffBackend,
-    A: OffPolicyAgent<B, Vec<Transition<E>>, A = E::A, O = E::O>,
-    M: Memory<T = Transition<E>, TBatch = Vec<Transition<E>>>,
+    A: OffPolicyAgent<B, Vec<Transition<E::O, E::A>>, A = E::A, O = E::O>,
+    M: Memory<T = Transition<E::O, E::A>, TBatch = Vec<Transition<E::O, E::A>>>,
     R: Rng,
 {
     pub fn train(mut self) {
+        // Environment seeding
+        self.env.reset(Some(self.rng.next_u64()));
+
         // Early Start
         let mut policy = |_: &E::O| <E::A>::sample(&mut self.rng);
         let transitions =
@@ -85,7 +91,7 @@ where
 
         // Main Training Loop
         let mut evaluation_statistics = Vec::new();
-        let mut observation = Some(self.env.reset());
+        let mut observation = Some(self.env.reset(None));
         for step in tqdm(0..self.cfg.training_steps) {
             // Step Environment
             let transition = collect_single(&mut self.env, observation, &mut |o| {
@@ -100,8 +106,9 @@ where
                 .update(self.memory.sample_random_batch(self.cfg.batch_size));
 
             // Evaluate
-            if step % 1_000 == 0 {
-                let episode_reward = evaluate_episode(&mut self.env, &mut |o| self.agent.a(o));
+            if step % 5_00 == 0 {
+                let episode_reward =
+                    evaluate_episode(&mut self.eval_env, &mut |o| self.agent.a(o), 0);
                 println!("Episode reward: {}", episode_reward);
                 evaluation_statistics.push(episode_reward);
             }

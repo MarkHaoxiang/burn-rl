@@ -8,7 +8,6 @@ use burn::{
 };
 use burn_rl::{
     data::util::Transition,
-    environment::Environment,
     module::{
         component::{Actor, Critic, Value},
         nn::target_model::WithTarget,
@@ -76,23 +75,24 @@ where
     }
 }
 
-impl<B, M, E, O> OffPolicyAgent<B, Vec<Transition<E>>> for DeepQNetworkAgent<B, M, O>
+impl<B, M, O, A, Opt> OffPolicyAgent<B, Vec<Transition<O, A>>> for DeepQNetworkAgent<B, M, Opt>
 where
-    E: Environment,
+    O: Clone,
+    A: Clone,
     B: AutodiffBackend,
     M: AutodiffModule<B>
         + Actor
-        + Value<B, OBatch = Vec<E::O>>
-        + Critic<B, OBatch = Vec<E::O>, ABatch = Vec<E::A>>,
-    O: Optimizer<M, B>,
+        + Value<B, OBatch = Vec<O>>
+        + Critic<B, OBatch = Vec<O>, ABatch = Vec<A>>,
+    Opt: Optimizer<M, B>,
 {
-    fn update(mut self, batch: Vec<Transition<E>>) -> Self {
+    fn update(mut self, batch: Vec<Transition<O, A>>) -> Self {
         self.update_counter += 1;
 
         // Transform data from batch
         let (before, (action, (after, (reward, done)))): (
-            Vec<E::O>,
-            (Vec<E::A>, (Vec<E::O>, (Vec<f64>, Vec<bool>))),
+            Vec<O>,
+            (Vec<A>, (Vec<O>, (Vec<f64>, Vec<bool>))),
         ) = batch.iter().map(|x| x.clone().to_nested_tuple()).unzip();
 
         let reward = Tensor::from_floats(reward.as_slice(), &Default::default());
@@ -118,7 +118,7 @@ where
 
         let grads = loss.backward();
         let grads = GradientsParams::from_grads(grads, &self.dqn_model.model);
-        self.dqn_model.model = self.optim.step(0.003, self.dqn_model.model, grads);
+        self.dqn_model.model = self.optim.step(0.001, self.dqn_model.model, grads);
 
         // Update target network
         if self.update_counter % self.target_network_update_interval == 0 {

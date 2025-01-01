@@ -1,18 +1,14 @@
 use crate::environment::Environment;
 
-pub struct Transition<E: Environment> {
-    pub before: E::O,
-    pub action: E::A,
-    pub after: E::O,
+pub struct Transition<O, A> {
+    pub before: O,
+    pub action: A,
+    pub after: O,
     pub reward: f64,
     pub done: bool,
 }
 
-impl<E: Environment> Clone for Transition<E>
-where
-    E::O: Clone,
-    E::A: Clone,
-{
+impl<O: Clone, A: Clone> Clone for Transition<O, A> {
     fn clone(&self) -> Self {
         Self {
             before: self.before.clone(),
@@ -24,8 +20,8 @@ where
     }
 }
 
-impl<E: Environment> Transition<E> {
-    pub fn to_nested_tuple(self) -> (E::O, (E::A, (E::O, (f64, bool)))) {
+impl<O, A> Transition<O, A> {
+    pub fn to_nested_tuple(self) -> (O, (A, (O, (f64, bool)))) {
         (
             self.before,
             (self.action, (self.after, (self.reward, self.done))),
@@ -38,10 +34,10 @@ pub fn collect_multiple<E: Environment, P: FnMut(&E::O) -> E::A>(
     observation: Option<E::O>,
     policy: &mut P,
     n_steps: u64,
-) -> Vec<Transition<E>> {
+) -> Vec<Transition<E::O, E::A>> {
     let mut before = match observation {
         Some(observation) => observation,
-        None => env.reset(),
+        None => env.reset(None),
     };
     let mut result = Vec::new();
     for _ in 0..n_steps {
@@ -55,7 +51,7 @@ pub fn collect_multiple<E: Environment, P: FnMut(&E::O) -> E::A>(
             done,
         });
         before = match done {
-            true => env.reset(),
+            true => env.reset(None),
             false => after,
         };
     }
@@ -66,7 +62,7 @@ pub fn collect_single<E: Environment, P: FnMut(&E::O) -> E::A>(
     env: &mut E,
     observation: Option<E::O>,
     policy: &mut P,
-) -> Transition<E> {
+) -> Transition<E::O, E::A> {
     collect_multiple(env, observation, policy, 1)
         .into_iter()
         .nth(0)

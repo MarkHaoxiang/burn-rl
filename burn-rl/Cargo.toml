@@ -9,3 +9,8 @@ expect-test = "1.5"
 gym-rs = { git = "https://github.com/MathisWellmann/gym-rs.git" }
 ringbuffer = "0.15"
 rand = "0.8.5"
+criterion = "0.5.1"
+
+[[bench]]
+name = "objective"
+harness = false

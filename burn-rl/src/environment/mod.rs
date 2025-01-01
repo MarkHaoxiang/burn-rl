@@ -7,7 +7,7 @@ pub trait Environment {
     type A: Space;
     type O: Space;
 
-    fn reset(&mut self) -> Self::O;
+    fn reset(&mut self, seed: Option<u64>) -> Self::O;
 
     fn step(&mut self, action: Self::A) -> (Self::O, Reward, Done);
 }

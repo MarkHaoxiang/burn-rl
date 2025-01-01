@@ -1,5 +1,5 @@
 use burn::{
-    backend::{Autodiff, NdArray, Wgpu},
+    backend::{Autodiff, NdArray},
     optim::AdamConfig,
     prelude::*,
     tensor::ElementComparison,
@@ -24,10 +24,11 @@ fn main() {
     type B = Autodiff<NdArray>;
     // type B = Autodiff<Wgpu>;
     let device: &Device<B> = &Default::default();
-    let mut rng = StdRng::seed_from_u64(0);
+    let mut rng = StdRng::seed_from_u64(30000);
 
     // Construct environment
     let env = GymEnvironment::from(CartPoleEnv::new(RenderMode::None));
+    let eval_env = GymEnvironment::from(CartPoleEnv::new(RenderMode::None));
 
     // Construct agent
     let dqn_model = CartPoleModel::<B>::init(device);
@@ -35,13 +36,14 @@ fn main() {
     let agent = DeepQNetworkAgentConfig::new().init(dqn_model, optim);
 
     // Construct memory
-    let memory = RingbufferMemory::<Transition<GymEnvironment<CartPoleEnv>>, _>::new(
-        10000,
+    let memory = RingbufferMemory::<Transition<CartPoleObservation, CartPoleAction>, _>::new(
+        20_000,
         StdRng::from_seed(rng.gen()),
     );
 
     // Algorithm
-    let algorithm = OffPolicyAlgorithmConfig::new(100_000, 32).init(env, agent, memory, rng);
+    let algorithm =
+        OffPolicyAlgorithmConfig::new(20_000, 128).init(env, eval_env, agent, memory, rng);
 
     // Execute Training Loop
     algorithm.train();
@@ -54,7 +56,7 @@ pub struct CartPoleModel<B: Backend> {
 
 impl<B: Backend> CartPoleModel<B> {
     pub fn init(device: &B::Device) -> Self {
-        let sizes = [4, 64, 32, 2].to_vec();
+        let sizes = [4, 64, 64, 2].to_vec();
         let config = MultiLayerPerceptronConfig::new(sizes);
         Self {
             model: config.init(device),
