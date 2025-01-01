@@ -8,3 +8,4 @@ burn = { workspace = true }
 burn-rl = { path = "../burn-rl" }
 gym-rs = { git = "https://github.com/MathisWellmann/gym-rs.git" }
 rand = "0.8.5"
+tqdm = "0.7.0"

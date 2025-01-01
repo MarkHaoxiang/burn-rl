@@ -12,6 +12,7 @@ use burn_rl::{
     environment::Environment,
 };
 use rand::Rng;
+use tqdm::tqdm;
 
 pub trait OffPolicyAgent<B: AutodiffBackend, TBatch>: Actor {
     fn update(self, batch: TBatch) -> Self;
@@ -19,9 +20,10 @@ pub trait OffPolicyAgent<B: AutodiffBackend, TBatch>: Actor {
 
 #[derive(Config)]
 pub struct OffPolicyAlgorithmConfig {
-    #[config(default = 4096)]
+    #[config(default = 10_000)]
     early_start_steps: u64,
     training_steps: u64,
+    batch_size: usize,
 }
 
 pub struct OffPolicyAlgorithm<B, E, A, M, R>
@@ -82,8 +84,9 @@ where
         let _ = transitions.into_iter().map(|x| self.memory.push(x));
 
         // Main Training Loop
+        let mut evaluation_statistics = Vec::new();
         let mut observation = Some(self.env.reset());
-        for step in 0..self.cfg.training_steps {
+        for step in tqdm(0..self.cfg.training_steps) {
             // Step Environment
             let transition = collect_single(&mut self.env, observation, &mut |o| {
                 epsilon_greedy(0.1, self.agent.a(o), &mut self.rng)
@@ -92,15 +95,18 @@ where
             self.memory.push(transition);
 
             // Update Agent
-            self.agent = self.agent.update(self.memory.sample_random_batch(64));
+            self.agent = self
+                .agent
+                .update(self.memory.sample_random_batch(self.cfg.batch_size));
 
             // Evaluate
-            if step % 100 == 0 {
-                println!(
-                    "Episode reward: {}",
-                    evaluate_episode(&mut self.env, &mut |o| self.agent.a(o))
-                );
+            if step % 1_000 == 0 {
+                let episode_reward = evaluate_episode(&mut self.env, &mut |o| self.agent.a(o));
+                println!("Episode reward: {}", episode_reward);
+                evaluation_statistics.push(episode_reward);
             }
         }
+
+        println!("{:?}", evaluation_statistics);
     }
 }

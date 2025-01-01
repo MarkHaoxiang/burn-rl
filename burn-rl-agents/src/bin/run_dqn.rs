@@ -1,5 +1,5 @@
 use burn::{
-    backend::{Autodiff, NdArray},
+    backend::{Autodiff, NdArray, Wgpu},
     optim::AdamConfig,
     prelude::*,
     tensor::ElementComparison,
@@ -22,6 +22,7 @@ use rand::{rngs::StdRng, Rng, SeedableRng};
 fn main() {
     println!("Running Deep Q-Learning Agent");
     type B = Autodiff<NdArray>;
+    // type B = Autodiff<Wgpu>;
     let device: &Device<B> = &Default::default();
     let mut rng = StdRng::seed_from_u64(0);
 
@@ -40,7 +41,7 @@ fn main() {
     );
 
     // Algorithm
-    let algorithm = OffPolicyAlgorithmConfig::new(10_000).init(env, agent, memory, rng);
+    let algorithm = OffPolicyAlgorithmConfig::new(100_000, 32).init(env, agent, memory, rng);
 
     // Execute Training Loop
     algorithm.train();
@@ -53,12 +54,8 @@ pub struct CartPoleModel<B: Backend> {
 
 impl<B: Backend> CartPoleModel<B> {
     pub fn init(device: &B::Device) -> Self {
-        let config = MultiLayerPerceptronConfig {
-            n_hidden_layers: 2,
-            input_size: 4,
-            hidden_size: 32,
-            output_size: 2,
-        };
+        let sizes = [4, 64, 32, 2].to_vec();
+        let config = MultiLayerPerceptronConfig::new(sizes);
         Self {
             model: config.init(device),
         }

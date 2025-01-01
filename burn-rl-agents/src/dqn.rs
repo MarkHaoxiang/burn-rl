@@ -22,7 +22,7 @@ use crate::off_policy::OffPolicyAgent;
 pub struct DeepQNetworkAgentConfig {
     #[config(default = 0.99)]
     discount_factor: f64,
-    #[config(default = 100)]
+    #[config(default = 500)]
     target_network_update_interval: u32,
 }
 

@@ -5,11 +5,10 @@ use burn::nn::Linear;
 use burn::prelude::*;
 use nn::{LeakyRelu, LeakyReluConfig, LinearConfig};
 
+
+#[derive(Config)]
 pub struct MultiLayerPerceptronConfig {
-    pub n_hidden_layers: usize,
-    pub input_size: usize,
-    pub hidden_size: usize,
-    pub output_size: usize,
+    sizes: Vec<usize>,
 }
 
 #[derive(Module, Debug)]
@@ -29,31 +28,16 @@ fn create_linear_layer<B: Backend>(
 impl MultiLayerPerceptronConfig {
     pub fn init<B: Backend>(&self, device: &B::Device) -> MultiLayerPerceptron<B> {
         let mut linear_layers = Vec::new();
-        if self.n_hidden_layers == 0 {
-            linear_layers.push(create_linear_layer(
-                self.input_size,
-                self.output_size,
-                device,
-            ));
-        } else {
-            linear_layers.push(create_linear_layer(
-                self.input_size,
-                self.hidden_size,
-                device,
-            ));
-            for _ in 0..(self.n_hidden_layers - 1) {
-                linear_layers.push(create_linear_layer(
-                    self.hidden_size,
-                    self.hidden_size,
-                    device,
-                ));
-            }
-            linear_layers.push(create_linear_layer(
-                self.hidden_size,
-                self.output_size,
-                device,
-            ));
+        
+        if self.sizes.len() < 2 {
+            // TODO: Result monad, and move valdiation to config creation
+            panic!("Unable to construct MLP. Expected vector of (input size, hidden size, ..., output size")
         }
+
+        for i in 0..self.sizes.len() - 1 { 
+            linear_layers.push(create_linear_layer(*self.sizes.get(i).unwrap(), *self.sizes.get(i+1).unwrap(), device));
+        }
+
         let activation = LeakyReluConfig::new().init();
         MultiLayerPerceptron {
             linear_layers,
@@ -94,14 +78,13 @@ mod tests {
         let device = &Default::default();
         for n_hidden_layers in 0..2 {
             let output_size = 3;
-            let model = MultiLayerPerceptronConfig {
-                n_hidden_layers,
-                input_size: 4,
-                hidden_size: 32,
-                output_size,
+            let mut sizes = Vec::new();
+            sizes.push(4);
+            for i in 0..n_hidden_layers {
+                sizes.push(32 * (i + 1));
             }
-            .init::<NdArray>(device);
-
+            sizes.push(3);
+            let model = MultiLayerPerceptronConfig::new(sizes).init::<NdArray>(device);
             let x = Tensor::<NdArray, 1>::from_floats([1.0, 2.0, 3.0, 4.0], device);
             assert_eq!(model.forward(x.clone()).shape(), Shape::new([output_size]));
         }
