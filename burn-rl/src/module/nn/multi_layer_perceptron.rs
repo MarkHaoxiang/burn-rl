@@ -5,7 +5,6 @@ use burn::nn::Linear;
 use burn::prelude::*;
 use nn::{LeakyRelu, LeakyReluConfig, LinearConfig};
 
-
 #[derive(Config)]
 pub struct MultiLayerPerceptronConfig {
     sizes: Vec<usize>,
@@ -28,14 +27,18 @@ fn create_linear_layer<B: Backend>(
 impl MultiLayerPerceptronConfig {
     pub fn init<B: Backend>(&self, device: &B::Device) -> MultiLayerPerceptron<B> {
         let mut linear_layers = Vec::new();
-        
+
         if self.sizes.len() < 2 {
             // TODO: Result monad, and move valdiation to config creation
             panic!("Unable to construct MLP. Expected vector of (input size, hidden size, ..., output size")
         }
 
-        for i in 0..self.sizes.len() - 1 { 
-            linear_layers.push(create_linear_layer(*self.sizes.get(i).unwrap(), *self.sizes.get(i+1).unwrap(), device));
+        for i in 0..self.sizes.len() - 1 {
+            linear_layers.push(create_linear_layer(
+                *self.sizes.get(i).unwrap(),
+                *self.sizes.get(i + 1).unwrap(),
+                device,
+            ));
         }
 
         let activation = LeakyReluConfig::new().init();

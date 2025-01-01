@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use burn::{module::AutodiffModule, prelude::*, tensor::backend::AutodiffBackend};
+use burn::prelude::*;
 use nn::loss::Reduction;
 
 use crate::module::{
@@ -50,10 +50,8 @@ impl DeepQNetworkLoss {
         reduction: Reduction,
     ) -> Tensor<B, 1>
     where
-        B: AutodiffBackend,
-        M: AutodiffModule<B>
-            + Critic<B, OBatch = OBatch, ABatch = ABatch>
-            + Value<B, OBatch = OBatch>,
+        B: Backend,
+        M: Module<B> + Critic<B, OBatch = OBatch, ABatch = ABatch> + Value<B, OBatch = OBatch>,
     {
         let pred_value_given_action_before = model.model.q_batch(before, action);
         let pred_value_after = model.target.v_batch(after);
