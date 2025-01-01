@@ -1,8 +1,14 @@
 [workspace]
+resolver = "2"
 
-members = [
-    "burn-rl", "burn-rl-agents"
-]
+members = ["burn-rl", "burn-rl-agents"]
 
 [workspace.dependencies]
-burn = { version = "0.15", features = ["ndarray", "wgpu", "cuda-jit", "autodiff"] }
+burn = { version = "0.15", features = [
+    "ndarray",
+    "wgpu",
+    "cuda-jit",
+    "autodiff",
+    "autotune",
+    "fusion",
+] }
